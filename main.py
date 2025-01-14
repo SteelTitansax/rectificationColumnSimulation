@@ -3,6 +3,7 @@ from equilibrium_data.heat_capacity_liquid import CpL
 from equilibrium_data.heat_capacity_vapor import CpV
 from equilibrium_data.heats_of_vaporization import dH_vap
 from equilibrium_data.pengrobinson import PengRobinson
+from bubble_point.calculation import bubble_point
 import os 
 
 import numpy as np 
@@ -35,6 +36,7 @@ class Model :
         self.F = F
         self.F_feed = F
         self.P = P
+        self.P_feed = P
         self.z_feed = {key: val for key, val in zip(components, z_feed)}        
         self.RR = RR
         self.B = F - D
@@ -112,7 +114,7 @@ class Model :
             
             # Create a PengRobinson instance with all required parameters
             
-            self.K_func[key] = PengRobinson(key, T_c, P_c, omega,T_feed, False)
+            self.K_func[key] = PengRobinson(key, T_c, P_c, omega,T_feed, True)
 
             self.CpL_func = {
                 key: CpL(key, verbose) for key in self.components
@@ -128,11 +130,37 @@ class Model :
                 key: val.T_ref for key, val in self.dH_func.items()
             }
 
+
         print('Parameters set sucessfully...')
 
-    def run(self, num_iter):
+    def bubble_T_feed(self):
+        P_c_values = []  # Lista para almacenar los valores de presión crítica
 
-        print('Iteration running : number iterations : ' + str(num_iter) )
+        for key in self.components:
+
+            ROOT_DIR = os.getcwd()
+            f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
+            data = read_csv_data(f_name)
+            assert key in data.keys(), f'Compound {key} not found!'
+            compound_data = data[key]
+            P_c = float(compound_data['Pc (Pa)'])
+            P_c_values.append(P_c)
+            print(P_c_values)  # Agregar P_c a la lista
+        K_values = [
+        self.K_func[component].calculate_K(self.T_feed_guess, P_c_values[idx])
+        for idx, component in enumerate(self.components)
+        ]
+        K_first = float(K_values[0][0])  # Extraer el primer valor del tuple
+        K_values = [K_first for _ in self.components] 
+        
+        print(K_values)
+        return bubble_point(
+            [self.z_feed[i] for i in self.components],
+            K_values,
+            self.P_feed, 
+            self.T_feed_guess
+        )
+
 
 def read_csv_data(f_name):
     data = {}
@@ -163,11 +191,15 @@ if __name__ == '__main__':
 
     )
     
-    model.run(100)
-
+    # Setting parameters 
 
     model.set_parameters()
 
+    # Calculate T using Bubble point 
+
+    print(model.T_feed)
+    model.T_feed = model.bubble_T_feed()
+    print(model.T_feed)
 
 
 
