@@ -5,7 +5,7 @@ from equilibrium_data.heats_of_vaporization import dH_vap
 from equilibrium_data.pengrobinson import PengRobinson
 import os 
 
-import numpy as np
+import numpy as np 
 
 class Model : 
 
@@ -117,7 +117,7 @@ class Model :
             self.CpL_func = {
                 key: CpL(key, verbose) for key in self.components
             }
-            
+
             self.CpV_func = {
                 key: CpV(key, verbose) for key in self.components
             }
