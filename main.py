@@ -9,9 +9,9 @@ import numpy as np
 
 class Model : 
 
-    def __init__(self, components: list = None, F: float = 0., P: float = 101325.,
+    def __init__(self, components: list = None, F: float = 0., P: float = 607950 , 
                  z_feed: list = None, RR: float = 1, D: float = 0, N: int = 1, feed_stage: int = 0,
-                 T_feed_guess: float = 50. ,num_iter: int=100):
+                 T_feed_guess: float = 77 ):
     
         """Distillation column with partial reboiler and total condenser.
         
@@ -71,7 +71,6 @@ class Model :
         }
         for component in self.components:
             self.z[component][feed_stage] = self.z_feed[component] # molar concentrations
-
         
         self.T_feed = self.T_feed_guess
         self.T = np.zeros(self.num_stages)
@@ -97,8 +96,11 @@ class Model :
         T_feed = self.T_feed
         self.K_func = {}
         ROOT_DIR = os.getcwd()
+
         for key in self.components:
+
             # Get the critical parameters for the compound
+
             f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
             data = read_csv_data(f_name)
             assert key in data.keys(), f'Compound {key} not found!'
@@ -109,7 +111,22 @@ class Model :
             omega = float(compound_data['Omega\n'])
             
             # Create a PengRobinson instance with all required parameters
+            
             self.K_func[key] = PengRobinson(key, T_c, P_c, omega,T_feed, False)
+
+            self.CpL_func = {
+                key: CpL(key, verbose) for key in self.components
+            }
+            
+            self.CpV_func = {
+                key: CpV(key, verbose) for key in self.components
+            }
+            self.dH_func = {
+                key: dH_vap(key, verbose) for key in self.components
+            }
+            self.T_ref = {
+                key: val.T_ref for key, val in self.dH_func.items()
+            }
 
         print('Parameters set sucessfully...')
 
@@ -132,17 +149,16 @@ def read_csv_data(f_name):
 
 
 
-
-
 if __name__ == '__main__':
     model = Model(
         ['Hydrogen','Nytrogen', 'Oxygen'],
         F=1000., # kmol/h
-        P=2*1e5, # Pa
+        P=607950, # Pa (6 atm)
         z_feed = [0.00005, 0.7808, 0.2095],
+        T_feed_guess = 77, # Operation temperature 
         RR=1.,
         D=400.,
-        N=30,
+        N=40,
         feed_stage=15,
 
     )

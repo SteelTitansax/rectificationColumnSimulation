@@ -1,7 +1,8 @@
+import os
 class CpL:
     """Heat capacities of liquids"""
     def __init__(self, compound_name, verbose=False):
-        from distillation import os, ROOT_DIR
+        ROOT_DIR = os.getcwd()
         file = os.path.join(ROOT_DIR, 'equilibrium_data', 'heat_capacity_liquid.csv')
         self.num_constants = 5
         self.units = 'J/kmol/K'
