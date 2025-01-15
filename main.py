@@ -3,10 +3,9 @@ from equilibrium_data.heat_capacity_liquid import CpL
 from equilibrium_data.heat_capacity_vapor import CpV
 from equilibrium_data.heats_of_vaporization import dH_vap
 from equilibrium_data.pengrobinson import PengRobinson
-from bubble_point.calculation import bubble_point
 import os 
-
-import numpy as np 
+import numpy as np
+from scipy.optimize import fsolve, OptimizeResult
 
 class Model : 
 
@@ -134,14 +133,15 @@ class Model :
 
         print('Parameters set sucessfully...')
 
-    def bubble_T_feed(self):
-        P_c_values = []  # Lista para almacenar los valores de presión crítica
-        T_c_values = []  # Lista para almacenar los valores de presión crítica
-        omega_values = []  # Lista para almacenar los valores de presión crítica
-        T = self.T_feed
-        P = self.P
-        for key in self.components:
+    
 
+    def bubble_T_feed(self):
+        P_c_values = []
+        T_c_values = []
+        omega_values = []
+
+        """Calculate the bubble-point temperature using K-values and mole fractions"""
+        for key in self.components:
             ROOT_DIR = os.getcwd()
             f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
             data = read_csv_data(f_name)
@@ -153,24 +153,56 @@ class Model :
             T_c_values.append(T_c)
             omega = float(compound_data['Omega\n'])
             omega_values.append(omega)
+            
+        T = self.T_feed
+        z = self.z_feed
+        P = self.P
 
-            print(P_c_values)  # Agregar P_c a la lista
-            print(T_c_values)  # Agregar P_c a la lista
-
+        # Calculate K values for each component at the current temperature
         K_values = [
-        self.K_func[component].calculate_K(T_c_values[idx], P_c_values[idx],omega,T,P)
-        for idx, component in enumerate(self.components)
+            self.K_func[component].calculate_K(T_c_values[idx], P_c_values[idx], omega_values[idx], T, P)
+            for idx, component in enumerate(self.components)
         ]
 
-        
-        print(K_values)
-        return bubble_point(
-            [self.z_feed[i] for i in self.components],
-            K_values,
-            self.P_feed, 
-            self.T_feed_guess
-        )
+        print("K_values: ", K_values)
 
+        # Define the bubble-point equation
+        def bubble_point_eq(self,T):
+            """
+            Esta función calcula la temperatura de burbuja iterando en un rango de temperaturas de T_min a T_max.
+            La condición de burbuja se satisface cuando la suma ponderada de los K-values multiplicados por las
+            fracciones molares es igual a 1.0.
+            """
+            T_min = T - 30  # Temperatura mínima
+            T_max = T + 30  # Temperatura máxima
+            step = 0.1  # Paso de iteración en grados (puedes ajustar este valor)
+
+            for T in np.arange(T_min, T_max, step):
+                sum_y = 0.0
+                for i, component in enumerate(self.components):
+                    K_value = self.K_func[component].calculate_K(T_c_values[i], P_c_values[i], omega_values[i], T, self.P)
+                    sum_y += K_value * self.z_feed[component]  # K_i(T) * z_i
+
+                # Comprobamos si la suma es cercana a 1.0 (condición de punto de burbuja)
+                if abs(sum_y - 1.0):  # Tolerancia para la convergencia
+                    print(f"Temperatura de burbuja encontrada: {T} K")
+                    return T
+
+            # Si no se encuentra un valor de T que cumpla la condición
+            print(f"No se pudo encontrar una temperatura de burbuja en el rango {T_min} K a {T_max} K")
+            return None
+
+
+        # Use fsolve to solve for the temperature that satisfies the bubble-point condition
+        T_bubble_point = bubble_point_eq(self,T) 
+
+        
+
+        return T_bubble_point        
+            
+        
+        
+        
 
 def read_csv_data(f_name):
     data = {}
@@ -193,7 +225,7 @@ if __name__ == '__main__':
         F=1305., # kmol/h
         P=538000, # KPa
         z_feed = [0.00005, 0.7808, 0.2095],
-        T_feed_guess = 79, # Operation temperature 
+        T_feed_guess = 77, # Operation temperature 
         RR=1.,
         D=400.,
         N=40,
