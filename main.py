@@ -179,6 +179,33 @@ class Model :
         print(self.K)
         self.T_old[:] = self.T[:]
 
+    def bubble_point_eq(self,T_c_values,P_c_values,omega_values,T,P):
+            
+            """
+            Esta función calcula la temperatura de burbuja iterando en un rango de temperaturas de T_min a T_max.
+            La condición de burbuja se satisface cuando la suma ponderada de los K-values multiplicados por las
+            fracciones molares es igual a 1.0.
+            """
+            
+            T_min = T - 30  # Temperatura mínima
+            T_max = T + 30  # Temperatura máxima
+            step = 0.1  # Paso de iteración en grados (puedes ajustar este valor)
+
+            for T in np.arange(T_min, T_max, step):
+                sum_y = 0.0
+                for i, component in enumerate(self.components):
+                    K_value = self.K_func[component].calculate_K(T_c_values[i], P_c_values[i], omega_values[i], T, P)
+                    sum_y += K_value * self.z_feed[component]  # K_i(T) * z_i
+
+                # Comprobamos si la suma es cercana a 1.0 (condición de punto de burbuja)
+                if abs(sum_y - 1.0):  # Tolerancia para la convergencia
+                    print(f"Temperatura de burbuja encontrada: {T} K")
+                    return T
+
+            # Si no se encuentra un valor de T que cumpla la condición
+            print(f"No se pudo encontrar una temperatura de burbuja en el rango {T_min} K a {T_max} K")
+            return None
+    
 
     def bubble_T_feed(self):
         P_c_values = []
@@ -211,40 +238,15 @@ class Model :
 
         print("K_values: ", K_values)
 
-        # Define the bubble-point equation
-        def bubble_point_eq(self,T):
-            """
-            Esta función calcula la temperatura de burbuja iterando en un rango de temperaturas de T_min a T_max.
-            La condición de burbuja se satisface cuando la suma ponderada de los K-values multiplicados por las
-            fracciones molares es igual a 1.0.
-            """
-            T_min = T - 30  # Temperatura mínima
-            T_max = T + 30  # Temperatura máxima
-            step = 0.1  # Paso de iteración en grados (puedes ajustar este valor)
 
-            for T in np.arange(T_min, T_max, step):
-                sum_y = 0.0
-                for i, component in enumerate(self.components):
-                    K_value = self.K_func[component].calculate_K(T_c_values[i], P_c_values[i], omega_values[i], T, self.P)
-                    sum_y += K_value * self.z_feed[component]  # K_i(T) * z_i
-
-                # Comprobamos si la suma es cercana a 1.0 (condición de punto de burbuja)
-                if abs(sum_y - 1.0):  # Tolerancia para la convergencia
-                    print(f"Temperatura de burbuja encontrada: {T} K")
-                    return T
-
-            # Si no se encuentra un valor de T que cumpla la condición
-            print(f"No se pudo encontrar una temperatura de burbuja en el rango {T_min} K a {T_max} K")
-            return None
-
-
-        # Use fsolve to solve for the temperature that satisfies the bubble-point condition
-        T_bubble_point = bubble_point_eq(self,T) 
+        # Use solver to solve for the temperature that satisfies the bubble-point condition
+        T_bubble_point = self.bubble_point_eq(T_c_values,P_c_values,omega_values,T,P) 
+        
+        return T_bubble_point        
 
         
 
-        return T_bubble_point        
-            
+    
         
         
 def make_ABC(V: np.array, L: np.array, K: np.array, F: np.array, z: np.array,
