@@ -12,7 +12,7 @@ class Model :
 
     def __init__(self, components: list = None, F: float = 0., P: float = 607950 , 
                  z_feed: list = None, RR: float = 1, D: float = 0, N: int = 1, feed_stage: int = 0,
-                 T_feed_guess: float = 77 ):
+                 T_feed_guess: float = 79 ):
     
         """Distillation column with partial reboiler and total condenser.
         
@@ -179,11 +179,11 @@ def read_csv_data(f_name):
 
 if __name__ == '__main__':
     model = Model(
-        ['Hydrogen','Nytrogen', 'Oxygen'],
-        F=1000., # kmol/h
-        P=607950, # Pa (6 atm)
+        ['Argon','Nytrogen', 'Oxygen'],
+        F=1305., # kmol/h
+        P=538000, # KPa
         z_feed = [0.00005, 0.7808, 0.2095],
-        T_feed_guess = 77, # Operation temperature 
+        T_feed_guess = 79, # Operation temperature 
         RR=1.,
         D=400.,
         N=40,
