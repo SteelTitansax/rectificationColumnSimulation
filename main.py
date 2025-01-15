@@ -96,6 +96,7 @@ class Model :
         """
 
         T_feed = self.T_feed
+        P=self.P
         self.K_func = {}
         ROOT_DIR = os.getcwd()
 
@@ -114,7 +115,7 @@ class Model :
             
             # Create a PengRobinson instance with all required parameters
             
-            self.K_func[key] = PengRobinson(key, T_c, P_c, omega,T_feed, True)
+            self.K_func[key] = PengRobinson(key, T_c, P_c, omega,T_feed,P, True)
 
             self.CpL_func = {
                 key: CpL(key, verbose) for key in self.components
@@ -135,7 +136,10 @@ class Model :
 
     def bubble_T_feed(self):
         P_c_values = []  # Lista para almacenar los valores de presión crítica
-
+        T_c_values = []  # Lista para almacenar los valores de presión crítica
+        omega_values = []  # Lista para almacenar los valores de presión crítica
+        T = self.T_feed
+        P = self.P
         for key in self.components:
 
             ROOT_DIR = os.getcwd()
@@ -145,13 +149,19 @@ class Model :
             compound_data = data[key]
             P_c = float(compound_data['Pc (Pa)'])
             P_c_values.append(P_c)
+            T_c = float(compound_data['Tc (K)'])
+            T_c_values.append(T_c)
+            omega = float(compound_data['Omega\n'])
+            omega_values.append(omega)
+
             print(P_c_values)  # Agregar P_c a la lista
+            print(T_c_values)  # Agregar P_c a la lista
+
         K_values = [
-        self.K_func[component].calculate_K(self.T_feed_guess, P_c_values[idx])
+        self.K_func[component].calculate_K(T_c_values[idx], P_c_values[idx],omega,T,P)
         for idx, component in enumerate(self.components)
         ]
-        K_first = float(K_values[0][0])  # Extraer el primer valor del tuple
-        K_values = [K_first for _ in self.components] 
+
         
         print(K_values)
         return bubble_point(
