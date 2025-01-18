@@ -153,7 +153,155 @@ class Model :
         )
         self.l[component][:] = solve_diagonal(A, B, C, D)
 
+    def h_pure_rule(self, c, T):
+        """rule for liquid enthalpy of pure component"""
+        return self.CpL_func[c].integral_dT(self.T_ref[c], T)
+
+    def h_j_rule(self, stage):
+        """Enthalpy of liquid on stage *j*.
+        Calculated for ideal mixture
+
+        .. math::
+
+            h_j = \\sum_i x_{ij}h^*_i(T_j)
+
+        where the asterisk indicates the pure component enthalpy
+
+        :return: :math:`h_j` [J/kmol]
+        """
+        return sum(
+            self.x_ij_expr(c, stage) * self.h_pure_rule(c, self.T[stage]) for c in self.components
+        )
+
+    def x_ij_expr(self, i, j):
+        """
+
+        :param i: component name
+        :param j: stage number
+        :return: mole fraction on stage
+        """
+        return self.l[i][j] / self.L[j]
+
+    def h_feed_rule(self, stage):
+        """Enthalpy of liquid in feed mixture
+        Calculated for ideal mixture
+
+        .. math::
+
+            h = \\sum_i x_{ij}h^*_i(T_j)
+
+        where the asterisk indicates the pure component enthalpy
+
+        :return: :math:`h` [J/kmol]
+        """
+        return sum(
+            self.z[c][stage] * self.h_pure_rule(c, self.T_feed) for c in self.components
+        )
+
+    def H_pure_rule(self, c, T):
+        """Rule for vapor enthalpy of pure component"""
+        return self.CpV_func[c].integral_dT(self.T_ref[c], T) + self.dH_func[c].eval()
+
+    def H_j_rule(self, stage):
+        """Enthalpy of vapor on stage *j*.
+        Calculated for ideal mixture
+
+        .. math::
+            H_j = \\sum_i y_{ij}H^*_i(T_j)
+
+        where the asterisk indicates the pure component enthalpy
+
+        .. todo::
+            convert y mole fractions to dynamic expression
+
+        :return: :math:`H_j` [J/kmol]
+        """
+        return sum(
+            self.y_ij_expr(c, stage) * self.H_pure_rule(c, self.T[stage]) for c in self.components
+        )
+
+    def y_ij_expr(self, i, j):
+        """
+
+        :param i: component name
+        :param j: stage number
+        :return: gas-phase mole fraction on stage
+        """
+
+        
+        """
+        TO BE FINETUNED
+        
+        ROOT_DIR = os.getcwd()
+        f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
+        data = read_csv_data(f_name)
+        compound_data = data[i]
+        P_c = float(compound_data['Pc (Pa)'])
+        T_c = float(compound_data['Tc (K)'])
+        omega = float(compound_data['Omega\n'])
+        
+        P = self.P
+        T = self.T_feed
+        l_total = sum(self.l[c][stage] for c in self.components)
+        z = [self.l[c][stage]/l_total for c in self.components]
+
+        # Calculate K values for each component at the current temperature
+        K_value = self.K_func[i].calculate_K(T_c, P_c, omega, self.T[j], self.P_feed)
+
+        return K_value * self.x_ij_expr(i, j)
+
+        """
+        
     
+    def solve_energy_balances(self):
+        """Solve energy balances"""
+
+        self.L_old[:] = self.L[:]
+        self.V_old[:] = self.V[:]
+
+        BE = np.zeros(self.num_stages)
+        CE = np.zeros(self.num_stages)
+        DE = np.zeros(self.num_stages)
+
+        # total condenser
+        BE[0] = 0.
+        CE[0] = self.h_j_rule(0) - self.H_j_rule(1)
+        DE[0] = self.F[0] * self.h_feed_rule(0) + self.Q_condenser_rule()
+
+        # stages 1 to N-1
+        for j in range(1, self.N):
+            BE[j] = self.H_j_rule(j) - self.h_j_rule(j - 1)
+            CE[j] = self.h_j_rule(j) - self.H_j_rule(j + 1)
+            DE[j] = self.F[j] * self.h_feed_rule(j) - self.D * (self.h_j_rule(j - 1) - self.h_j_rule(j)) \
+                    - sum(self.F[k] for k in range(j + 1)) * self.h_j_rule(j) \
+                    + sum(self.F[k] for k in range(j)) * self.h_j_rule(j - 1)
+
+        # partial reboiler
+        BE[self.N] = self.H_j_rule(self.N) - self.h_j_rule(self.N - 1)
+        DE[self.N] = self.F[self.N] * self.h_feed_rule(self.N) + self.Q_reboiler_rule() \
+                     - self.B * (self.h_j_rule(self.N - 1) - self.h_j_rule(self.N)) \
+                     - self.F[self.N - 1] * self.h_j_rule(self.N - 1)
+
+        A = diags(
+            diagonals=[BE[1:], CE[1:-1]],
+            offsets=[0, 1],
+            shape=(self.N, self.N),
+            format='csr'
+        )
+        self.V[1:] = linalg.spsolve(A, DE[1:])
+        self.L[0] = self.RR * self.D
+        for i in range(1, self.N):
+            self.L[i] = self.V[i + 1] - self.D + sum(self.F[k] for k in range(i + 1))
+        self.L[self.N] = self.B
+
+    def Q_reboiler_rule(self):
+        return self.D * self.h_j_rule(0) + self.B * self.h_j_rule(self.N) \
+               - self.F_feed * self.h_feed_rule(self.feed_stage) - self.Q_condenser_rule()
+    
+    def Q_condenser_rule(self):
+        """Condenser requirement can be determined from balances around total condenser"""
+        return self.D * (1. + self.RR) * (self.h_j_rule(0) - self.H_j_rule(1))
+
 
     def update_K_values(self):
         P_c_values = []
@@ -183,6 +331,47 @@ class Model :
         print(self.K)
         self.T_old[:] = self.T[:]
 
+    def bubble_T(self, stage):
+
+        
+        P_c_values = []
+        T_c_values = []
+        omega_values = []
+
+        """Calculate the bubble-point temperature using K-values and mole fractions"""
+    
+        for key in self.components:
+            ROOT_DIR = os.getcwd()
+            f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
+            data = read_csv_data(f_name)
+            assert key in data.keys(), f'Compound {key} not found!'
+            compound_data = data[key]
+            P_c = float(compound_data['Pc (Pa)'])
+            P_c_values.append(P_c)
+            T_c = float(compound_data['Tc (K)'])
+            T_c_values.append(T_c)
+            omega = float(compound_data['Omega\n'])
+            omega_values.append(omega)
+            
+        P = self.P
+        T = self.T_feed
+        l_total = sum(self.l[c][stage] for c in self.components)
+        z = [self.l[c][stage]/l_total for c in self.components]
+
+        # Calculate K values for each component at the current temperature
+        K_values = [
+            self.K_func[component].calculate_K(T_c_values[idx], P_c_values[idx], omega_values[idx], T, P)
+            for idx, component in enumerate(self.components)
+        ]
+
+
+
+        # Use solver to solve for the temperature that satisfies the bubble-point condition
+        T_bubble_point = self.bubble_point_eq(T_c_values,P_c_values,omega_values,T,P) 
+        
+        return T_bubble_point        
+
+        
     def bubble_point_eq(self,T_c_values,P_c_values,omega_values,T,P):
             
             """
@@ -199,7 +388,7 @@ class Model :
                 for i, component in enumerate(self.components):
                     K_value = self.K_func[component].calculate_K(T_c_values[i], P_c_values[i], omega_values[i], T, P)
                     sum_y += K_value * self.z_feed[component]  # K_i(T) * z_i
-
+                    print("Sum_y",sum_y)
                 #  Sum close to 1.0 (bubble point conditión)
     
                 if abs(sum_y - 1.0):  # Convergence Tolerance
@@ -242,15 +431,18 @@ class Model :
             for idx, component in enumerate(self.components)
         ]
 
-        print("K_values: ", K_values)
-
 
         # Use solver to solve for the temperature that satisfies the bubble-point condition
         T_bubble_point = self.bubble_point_eq(T_c_values,P_c_values,omega_values,T,P) 
         
         return T_bubble_point        
 
-        
+    def T_is_converged(self):
+        """
+          :return: True if T is converged, else False
+        """
+        eps = np.abs(self.T - self.T_old)
+        return eps.max() < self.temperature_tol        
 
     
         
@@ -312,7 +504,7 @@ if __name__ == '__main__':
     model = Model(
         ['Argon','Nytrogen', 'Oxygen'],
         F=1305., # kmol/h
-        P=538000, # KPa
+        P=506625, # KPa
         z_feed = [0.00005, 0.7808, 0.2095],
         T_feed_guess = 77, # Operation temperature 
         RR=1.,
@@ -361,5 +553,83 @@ if __name__ == '__main__':
     for i in model.components:
         print(i, model.l[i])
 
+    # Solve the bubble point for every stage 
+    print("Setting bubble point for every stage")
+    print(model.T)
+    for stage in model.stages:
+        model.T[stage] = model.bubble_T(stage)
+    print(model.T)
 
-    
+    # Print if is converged
+
+    print(model.T_is_converged())
+
+    # Iteration 
+
+    iter = 0
+    while not model.T_is_converged():
+        model.update_K_values()
+        for i in model.components:
+            model.solve_component_mass_bal(i)
+        for stage in model.stages:
+            model.T[stage] = model.bubble_T(stage)
+        print(iter, model.T)
+        iter += 1
+
+    print(model.T_is_converged())
+
+    """# Energy balance
+    print(model.L)
+    print(model.V)
+    model.solve_energy_balances()
+    print(model.L)
+    print(model.V)"""
+
+    # Convergence of flow rates 
+
+    """print(model.flow_rates_converged())"""
+
+    # Iteration process of flow rate convergence 
+    """
+    outer_loop = 0
+    inner_loop = 0
+    while not model.flow_rates_converged():
+        outer_loop += 1
+        for i in model.components:
+            model.solve_component_mass_bal(i)
+        for stage in model.stages:
+            model.T[stage] = model.bubble_T(stage)
+        while not model.T_is_converged():
+            inner_loop += 1
+            model.update_K_values()
+            for i in model.components:
+                model.solve_component_mass_bal(i)
+            for stage in model.stages:
+                model.T[stage] = model.bubble_T(stage)
+        model.solve_energy_balances()
+        print(outer_loop, inner_loop, model.V)"""
+
+    # X Flows and plot behaviours
+
+    """x = {}
+    for i in model.components:
+        x[i] = model.l[i][:]/model.L[:]
+    print(x)
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure(1)
+    ax = fig.add_subplot(111)
+    ax.plot(model.stages, model.T, 'o')
+    ax.set_xlabel('Stage Number')
+    ax.set_ylabel('Temperature [K]')
+
+    # plot liquid-phase mole fractions
+    fig2 = plt.figure(2)
+    ax2 = fig2.add_subplot(111)
+    # calculate mole fractions
+    for i in model.components:
+        ax2.plot(model.stages, x[i], label=i)
+    ax2.set_ylabel('Liquid phase mole fraction')
+    ax2.set_xlabel('Stage Number')
+    ax2.legend()
+    """
