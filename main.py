@@ -14,7 +14,9 @@ class Model :
                  z_feed: list = None, RR: float = 1, D: float = 0, N: int = 1, feed_stage: int = 0,
                  T_feed_guess: float = 79 ):
     
-        """Distillation column with partial reboiler and total condenser.
+        """
+        
+        Distillation column with partial reboiler and total condenser.
         
         Feed is saturated liquid.        
 
