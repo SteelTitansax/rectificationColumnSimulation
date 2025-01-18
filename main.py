@@ -85,9 +85,10 @@ class Model :
         
         print('Setting parameters ...')
 
-        """Add thermodynamic parameters for calculation
+        """
+        Add thermodynamic parameters for calculation
 
-        .. note::
+        .. Note::
 
             K values from PengRobinson model 
             CpL from Perrys
@@ -158,6 +159,7 @@ class Model :
         omega_values = []
 
         """Calculate the bubble-point temperature using K-values and mole fractions"""
+    
         for key in self.components:
             ROOT_DIR = os.getcwd()
             f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
@@ -182,14 +184,13 @@ class Model :
     def bubble_point_eq(self,T_c_values,P_c_values,omega_values,T,P):
             
             """
-            Esta función calcula la temperatura de burbuja iterando en un rango de temperaturas de T_min a T_max.
-            La condición de burbuja se satisface cuando la suma ponderada de los K-values multiplicados por las
-            fracciones molares es igual a 1.0.
+            This function calculates the bubble-point temperature using K-values and mole fractions from Tmin to Tmax.
+            The bubble point condition is satisfied when the sum of the K-values multiplied by the mole fractions is equal to 1.
             """
             
-            T_min = T - 30  # Temperatura mínima
-            T_max = T + 30  # Temperatura máxima
-            step = 0.1  # Paso de iteración en grados (puedes ajustar este valor)
+            T_min = T - 30  # Minimum temperature
+            T_max = T + 30  # Maximum temperature
+            step = 0.1  # Iteration step 
 
             for T in np.arange(T_min, T_max, step):
                 sum_y = 0.0
@@ -197,13 +198,15 @@ class Model :
                     K_value = self.K_func[component].calculate_K(T_c_values[i], P_c_values[i], omega_values[i], T, P)
                     sum_y += K_value * self.z_feed[component]  # K_i(T) * z_i
 
-                # Comprobamos si la suma es cercana a 1.0 (condición de punto de burbuja)
-                if abs(sum_y - 1.0):  # Tolerancia para la convergencia
-                    print(f"Temperatura de burbuja encontrada: {T} K")
+                #  Sum close to 1.0 (bubble point conditión)
+    
+                if abs(sum_y - 1.0):  # Convergence Tolerance
+                    print(f"Bubble temperature found: {T} K")
                     return T
 
             # Si no se encuentra un valor de T que cumpla la condición
-            print(f"No se pudo encontrar una temperatura de burbuja en el rango {T_min} K a {T_max} K")
+    
+            print(f"Bubble temperature could not be found in the {T_min} K - {T_max} K range")
             return None
     
 
@@ -213,6 +216,7 @@ class Model :
         omega_values = []
 
         """Calculate the bubble-point temperature using K-values and mole fractions"""
+    
         for key in self.components:
             ROOT_DIR = os.getcwd()
             f_name = os.path.join(ROOT_DIR, 'equilibrium_data', 'pengrobinson.csv')
@@ -333,6 +337,7 @@ if __name__ == '__main__':
         print(model.T)
     
     # Initialize Flow Rates 
+    
     print(model.L)
     print(model.V)
     
@@ -342,6 +347,7 @@ if __name__ == '__main__':
     print(model.V)
 
     # Calculate K values
+    
     model.update_K_values()
 
     # Solve component mass balances
